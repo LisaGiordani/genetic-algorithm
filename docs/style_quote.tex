@@ -1,0 +1,18 @@
+
+\usepackage{tcolorbox}
+
+\definecolor{summary}{cmyk}{0.80, 0.13, 0.14, 0.04, 1.00}
+
+\newtcolorbox{myquote}{
+    title=Key concepts,
+    colback=summary!5!white,
+    colframe=summary!75!black
+}
+
+% redefine the 'quote' environment to use this 'myquote' environment
+\renewenvironment{quote}
+    {\begin{myquote}
+        \setlength{\parskip}{0.5em}
+    }
+    {\end{myquote}}
+

@@ -1,0 +1,11 @@
+metadata:
+    title: "Metaheuristics Lesson"
+    author: Johann Dreo
+variables:
+    documentclass: memoir
+include-in-header:
+    - docs/style_quote.tex
+    - docs/style_paragraph.tex
+    - docs/commands.tex
+table-of-contents: true
+toc-depth: 3
