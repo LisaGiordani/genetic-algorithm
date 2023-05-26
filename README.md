@@ -1,130 +1,107 @@
+# Optimisation du placement de capteurs
 
-SHO — Stochastic Heuristics Optimization
-========================================
+Date : 09/11/21
 
-SHO is a didactic Python framework for implementing metaheuristics
-(or evolutionary computation, or search heuristics).
+Résolution d'un problème de placement de capteurs à l'aide d'algorithmes d'optimisation et de méta-heuristiques.
+Les différentes solutions  à ce problème seront représentées sous forme de vecteurs numériques ou de chaînes de bits (appelés _num_ et _bit_ par la suite).
 
-Its main objective is to free students from implementing boring stuff
-and allow them to concentrate on single operator implementation.
+## Pré-requis
+Installer la librairie SALib (Sensitivity Analysis Library) avec la commande `pip install SALib`.
 
-The framework implements a simple sensor placement problem
-and handle metaheuristics manipulating solutions represented as
-numerical vectors or bitstrings.
+Lien vers le [GitHub de la librairie](https://github.com/SALib/SALib)
 
-Author: Johann Dreo <johann@dreo.fr>.
+## Algorithmes d'optimisation comparés
+- Aléatoire
+- Glouton (num et bit)
+- Recuit simulé (num et bit)
+- Génétique (num et bit)
 
-Executable
-----------
+Ils se trouvent dans le fichier `algo.py` situé dans le dossier `sho`.
 
-The main interface is implemented in `snp.py`.
-New algorithms should be integrated within this file and the interface should not be modified.
-One may add arguments, but not remove or change the contracts of the existing ones.
+## Expected Runtime Section (ERS ie a runtime empirical cumulative density function)
+Le code permettant de visualiser l'ERS se trouve dans le fichier `ERS.py`.
 
-The file `snp_landscape.py` is an example that plots the objective function
-and a greedy search trajectory for a simple problem with only two dimensions.
+## Fonction objectif
+La fonction objectif est la fonction `cover_sum()` qui se trouve :
+- Cas bit : dans le fichier `bit.py`
+- Cas numérique : dans le fichier `num.py`
 
+## Démarche
 
-Architecture
-------------
+### Initialisation
+On réalise un tirage quasi-aléatoire à faible discrépance dans un domaine réduit.
+On réduit le domaine de sorte que le placement des capteurs puisse couvrir les zones
+situés dans les angles du domaines, mais pas au delà. Cette zone (bande) interdite est
+donc d'une largeur égale à sensor_range/sqrt(2) et se situe tout autour du domaine.
+Pour réaliser le tirage quasi-aléatoire à faible discrépance, on utilise la libraire SALib.
+Cette librairie s'appuie sur la méthode d'échantillonnage de Sobol pour réaliser ce tirage.
+On aurait également pu utiliser les méthodes minimax, maximin ou encore LHS, afin de remplir
+le domaine en comblant l'espace le mieux possible.
 
-The design pattern of the framework is a functional approach to composition.
-The goal is to be able to assemble a metaheuristic, by plugging atomic
-functions in an algorithm template.
+### Gestion des contraintes
+Lors de l'opération de variation d'un point (fonction `neighb_square()`), si le nouveau point
+est tiré en dehors du domaine, on ne garde pas ce point (ie capteur). (*)
+On réalise alors un tirage uniforme centré sur le point à faire varier dans le domaine
+(génération d'une solution faisable).
+Dans le cas où le nouvel espace de tirage est réduit à un singleton dans une dimension (le point
+à faire varier se situe sur une frontière du domaine), on tire plutôt dans l'espace orginal (*) auquel
+on impose une translation pour qu'il soit complètement dans le domaine du problème.
+On aurait également pu pénaliser la fonction objectif en lui ajoutant la distance des capteurs
+au domaine.
 
+### Comparaison des algorithmes
+On fait varier les paramètres suivants :
+- paramètres du problème : nombre de capteurs, portée des capteurs
+- paramètres de l'algorithme de recuit simulé : température initiale, beta (facteur de
+décroissance de la température)
+- paramètre de l'algorithme génétique : taille de la population
 
-### Operators
+_Remarque_ : on ne fait pas varier la taille du domaine, parce la portée des capteurs correspond
+déjà à une proportion par rapport à la largeur du domaine, donc la faire varier revient à
+faire varier la taille du domaine.
 
-The base of the pattern is a function that contains the main loop
-of the algorithm, and call other functions called "operators".
-Example of those algorithms are in the `algo` module.
+On choisit une valeur de seuil pour calculer l'ERS qui soit inférieure à la couverture généralement
+atteinte sans être trop faible pour ensuite pouvoir discriminer les performances des algorithmes.
+Puis, on construit l'ERS d'une instance d'algorithme pour un nombre de runs (échantillonnage)
+suffisant (ie 100). On fait de même pour une instance d'algorithme différente (en faisant varier les
+paramètres ci-dessus). On superpose les deux courbes afin de pouvoir les comparer.
 
-For instance, the `random` algorithm depends on an objective function `func`,
-an initialization operator `init` and a stopping criterion operator `again`.
+On choisit un budget de temps fixe : 100 appels à la fonction objectif, qui est l'opération qui
+domine les autres en temps de calcul.
+On distingue plusieurs cas :
+- Cas A : les deux instances d'algorithme ont la même probabilité que leur fonction objectif
+dépasse le seuil fixé une fois le budget de temps dépensé.
+Dans le cas A, on compare les instances d'algorithme grâce à l'aire sous chacun des courbes de l'ERS.
+On considère qu'une instance d'algorithme est meilleure si l'aire sous sa courbe est supérieure à celle
+de l'autre instance d'algorithme.
+- Cas B : lorsque le budget de temps est dépensé, les deux instances d'algorithme n'ont pas la même
+probabilité que leur fonction objectif dépasse le seuil (non cas A).
+Dans le cas B, il faut étudier les allures des courbes de l'ERS. On peut également s'aider du calcul
+des aires sous les courbes. Néanmoins, le placement de capteurs n'est pas un problème nécessitant
+un temps de calcul extrêmement rapide, puisque c'est une décision qui demande en général des semaines à
+être prise par les entreprises de télécommunications. Alors, on peut raisonnablement considérer qu'une
+instance d'algorithme ayant une probabilité plus élevée que sa fonction ojbectif dépasse le seuil soit
+la meilleure pour notre problème.
 
+### Plan d'expérience
+Pour chaque paramètre à faire varier, on définit un domaine sous la forme d'une liste de valeurs pouvant
+être prises par ce paramètre.
+On réalise deux plans d'expérience différents pour l'algorithme de recuit simulé et celui génétique.
+Pour chaque plan d'expérience, on va parcourir l'ensemble des domaines des paramètres correspondants
+à l'aide de boucles for imbriquées.
+A chaque fois que l'on fait varier un paramètrede l'algorithme, on trace la courbe d'ERS moyenne correspondant
+à l'échantillonnage de cette instance d'algorithme sur tous les problèmes selectionnés.
+Pour réaliser cette ERS moyenne, on normalise les résultats en considérant le seuil comme un pourcentage fixe
+de la couverture maximale du problème. De cette manière, on peut comparer les perfomances des instances
+d'algorithme sur plusieurs problèmes à la fois.
+On obtient des ERS moyennes pour l'algorithme de recuit simulé (num) et d'autres pour l'algorithme génétique (num).
 
-### Encoding
+### Choix de l'algorithme optimale
+Pour chacun des deux ERS, on applique l'approche décrite dans la section _Comparaison des algorithmes_ afin
+de choisir l'instance d'algorithme qu'on considère comme étant la meilleure pour notre problème.
+Enfin, pour départager la meilleure instance de l'algorithme de recuit simulé et celle de l'algorithme génétique,
+on procède de la même manière que précédemment.
+Le fait d'avoir séparé les deux types d'algorithmes sur des ERS différents permet seulement d'avoir moins
+de courbes à la fois sur les ERS, mais on aurait pu superposer les deux ERS obtenus.
 
-Some operator do not depend on the way solutions are encoded
-(like the stopping criterions) and some operators do depend on the encoding.
-The former are defined in their own modules while the later are defined
-in the module corresponding to their encoding (either `num` or `bit`).
-
-
-### Interface capture
-
-As they are assembled in an algorithm that do not know their internal
-in advance, an operators needs to honor an interface.
-For instance, the `init` operator's interface takes no input parameter
-and returns a solution to the problem.
-
-However, some operator may need additional parameters to be passed.
-To solve this problem, the framework use an interface capture pattern.
-
-There is two ways to capture the interface: either with a functional approach,
-either with an object-oriented approach.
-You can use the one you prefer, the advice is to use the functional approach when
-you can implement your operator as a stateless function,
-and the object-oriented approach when you need àour operator to manage a state.
-
-
-#### Function capture
-
-The functional capture helpers are implemented in the `make` module.
-Basically, a function in this module capture the operator function's full
-interface and returns a function having the expected interface of the
-operator.
-
-The implicit rule is to use positional arguments for mandatory parameters
-on which the operator is defined, and keyword arguments for parameters
-which are specific to the operator.
-
-
-#### Object-oriented capture
-
-The object-oriented approach does not need helpers,
-you just need to define a "functor" class,
-that is, a class which implements the `__call__` interface.
-This special function member allows to call an instance of a class
-as if it was a function.
-
-The `__call__` method should honor the targeted operator interface.
-To pass fixed parameters, use the `__init__` constructor.
-
-There is an example of an operator implemented this way
-as the `steady` class in the `sho/iters.py` file.
-
-
-Exercises
----------
-
-### Setup
-
-Two example algorithms are provided: a `random` search
-and a `greedy` search.
-Several useful stopping criterions are provided.
-The corresponding encoding-dependent operators are also provided,
-for both numeric and bitstring encodings.
-The `snp.py` file shows how to assemble either a numeric greedy solver
-or a bitstring greedy solver.
-
-To setup your own solver, add your algorithm(s) into the `algo.py` module,
-then assemble its instance under its name into `snp.py`.
-For instance, if you created the `annealing` algorithm,
-you will be able to immediatly assemble `num_annealing` and `bit_annealing`.
-
-One should be able to call your solvers with `python3 snp.py --solver num_annealing`,
-for instance.
-
-
-### List of exercises
-
-Most exercises consists in adding a single function in an existing module
-(or your own module) and use assemble it in the main executable.
-
-1. Implement a simulated annealing.
-2. Implement an evolutionary algorithm.
-3. Implement an expected run time empirical cumulative density function.
-4. Implement a simple design of experiment to determine the best solver.
-5. Provide a solver for a competition.
-
+**ALgorithme choisi** : recuit simulé avec une température initiale de 50 et un facteur beta valant 5.
