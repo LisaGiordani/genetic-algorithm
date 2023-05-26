@@ -104,4 +104,4 @@ on procède de la même manière que précédemment.
 Le fait d'avoir séparé les deux types d'algorithmes sur des ERS différents permet seulement d'avoir moins
 de courbes à la fois sur les ERS, mais on aurait pu superposer les deux ERS obtenus.
 
-**ALgorithme choisi** : recuit simulé avec une température initiale de 50 et un facteur beta valant 5.
+**Algorithme choisi** : recuit simulé avec une température initiale de 50 et un facteur beta valant 5.
